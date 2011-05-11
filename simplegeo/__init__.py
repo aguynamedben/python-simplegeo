@@ -9,6 +9,7 @@ import warnings
 
 from simplegeo.models import Feature
 from simplegeo.util import json_decode, APIError, SIMPLEGEOHANDLE_RSTR, is_simplegeohandle, to_unicode
+from simplegeo import https
 
 # For backwards compatibility with other codebases.
 from simplegeo.util import APIError, DecodeError
@@ -21,7 +22,6 @@ API_VERSION = '1.0'
 
 class Client(object):
 
-    realm = "http://api.simplegeo.com"
     endpoints = {
         # Shared
         'feature': '1.0/features/%(simplegeohandle)s.json',
@@ -29,16 +29,25 @@ class Client(object):
         # More endpoints are added by mixins.
     }
 
-    def __init__(self, key, secret, api_version=API_VERSION, host="api.simplegeo.com", port=80, timeout=None):
+    def __init__(self, key, secret, api_version=API_VERSION, host="api.simplegeo.com", port=80, ssl=False, timeout=None):
         self.host = host
         self.port = port
+        self.ssl = ssl
         self.consumer = oauth.Consumer(key, secret)
         self.key = key
         self.secret = secret
         self.signature = oauth.SignatureMethod_HMAC_SHA1()
-        self.uri = "http://%s:%s" % (host, port)
         self.req_headers = {}
-        self.http = Http(timeout=timeout)
+
+        if self.ssl:
+            self.uri = "https://%s:%s" % (host, port)
+            self.realm = "https://api.simplegeo.com"
+            self.http = https
+        else:
+            self.uri = "http://%s:%s" % (host, port)
+            self.realm = "http://api.simplegeo.com"
+            self.http = Http(timeout=timeout)
+
         self.headers = {}
 
         self.subclient = getattr(self, 'subclient', False)
@@ -46,9 +55,9 @@ class Client(object):
         # Do not create recursive subclients.
         # Only create subclients if we are running __init__() from Client.
         if not self.subclient:
-            self.context = ContextClient(key, secret, host=host, port=port)
-            self.places = PlacesClient(key, secret, host=host, port=port)
-            self.storage = StorageClient(key, secret, host=host, port=port)
+            self.context = ContextClient(key, secret, host=host, port=port, ssl=ssl)
+            self.places = PlacesClient(key, secret, host=host, port=port, ssl=ssl)
+            self.storage = StorageClient(key, secret, host=host, port=port, ssl=ssl)
 
     # For backwards compatibility with the old Storage client.
     def __getattr__(self, name):
